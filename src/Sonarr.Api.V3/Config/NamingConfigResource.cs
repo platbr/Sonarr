@@ -5,6 +5,7 @@ namespace Sonarr.Api.V3.Config
     public class NamingConfigResource : RestResource
     {
         public bool RenameEpisodes { get; set; }
+        public bool KeepFileNameHistory { get; set; }
         public bool ReplaceIllegalCharacters { get; set; }
         public int MultiEpisodeStyle { get; set; }
         public string StandardEpisodeFormat { get; set; }

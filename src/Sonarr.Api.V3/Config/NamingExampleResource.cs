@@ -23,6 +23,7 @@ namespace Sonarr.Api.V3.Config
                 Id = model.Id,
 
                 RenameEpisodes = model.RenameEpisodes,
+                KeepFileNameHistory = model.KeepFileNameHistory,
                 ReplaceIllegalCharacters = model.ReplaceIllegalCharacters,
                 MultiEpisodeStyle = model.MultiEpisodeStyle,
                 StandardEpisodeFormat = model.StandardEpisodeFormat,
@@ -57,6 +58,7 @@ namespace Sonarr.Api.V3.Config
                 Id = resource.Id,
 
                 RenameEpisodes = resource.RenameEpisodes,
+                KeepFileNameHistory = resource.KeepFileNameHistory,
                 ReplaceIllegalCharacters = resource.ReplaceIllegalCharacters,
                 MultiEpisodeStyle = resource.MultiEpisodeStyle,
                 StandardEpisodeFormat = resource.StandardEpisodeFormat,

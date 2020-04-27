@@ -236,6 +236,18 @@ class Naming extends Component {
                 renameEpisodes &&
                   <div>
                     <FormGroup size={sizes.LARGE}>
+                      <FormLabel>Keep FileName History</FormLabel>
+
+                      <FormInputGroup
+                        type={inputTypes.CHECK}
+                        name="keepFileNameHistory"
+                        helpText="Sonarr will keep the original file name saved on file_info (FileBot pattern)."
+                        onChange={onInputChange}
+                        {...settings.keepFileNameHistory}
+                      />
+                    </FormGroup>
+
+                    <FormGroup size={sizes.LARGE}>
                       <FormLabel>Standard Episode Format</FormLabel>
 
                       <FormInputGroup
