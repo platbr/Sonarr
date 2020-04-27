@@ -6,6 +6,7 @@ namespace NzbDrone.Api.Config
     public class NamingConfigResource : RestResource
     {
         public bool RenameEpisodes { get; set; }
+        public bool KeepFileNameHistory { get; set; }
         public bool ReplaceIllegalCharacters { get; set; }
         public int MultiEpisodeStyle { get; set; }
         public string StandardEpisodeFormat { get; set; }
@@ -31,6 +32,7 @@ namespace NzbDrone.Api.Config
                 Id = model.Id,
 
                 RenameEpisodes = model.RenameEpisodes,
+                KeepFileNameHistory = model.KeepFileNameHistory,
                 ReplaceIllegalCharacters = model.ReplaceIllegalCharacters,
                 MultiEpisodeStyle = model.MultiEpisodeStyle,
                 StandardEpisodeFormat = model.StandardEpisodeFormat,
@@ -65,6 +67,7 @@ namespace NzbDrone.Api.Config
                 Id = resource.Id,
 
                 RenameEpisodes = resource.RenameEpisodes,
+                KeepFileNameHistory = resource.KeepFileNameHistory,
                 ReplaceIllegalCharacters = resource.ReplaceIllegalCharacters,
                 MultiEpisodeStyle = resource.MultiEpisodeStyle,
                 StandardEpisodeFormat = resource.StandardEpisodeFormat,
