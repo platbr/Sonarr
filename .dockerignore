@@ -1,3 +1,8 @@
+.git
+.gitignore
+.github
+.gitattributes
+
 # Build Folders (you can keep bin if you'd like, to store dlls and pdbs)
 src/**/[Bb]in/
 src/**/[Oo]bj/
@@ -141,4 +146,3 @@ output/*
 _start
 
 src/.idea/
-platbr/Dockerfile
