@@ -18,7 +18,11 @@ namespace NzbDrone.Core.MediaFiles
 
         public void Append(string newName, string originalName)
         {
-            if (newName == originalName) return;
+            if (newName == originalName)
+            {
+                return;
+            }
+
             var oldestFileName = FindOldestFileName(originalName);
             foreach (var entry in Entries.Where(entry => entry.NewName == newName || entry.NewName == originalName).ToList())
             {
