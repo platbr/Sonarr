@@ -33,7 +33,8 @@ namespace NzbDrone.Core.Parser
                                                                new IsoLanguage("hu", "hun", Language.Hungarian),
                                                                new IsoLanguage("he", "heb", Language.Hebrew),
                                                                new IsoLanguage("lt", "lit", Language.Lithuanian),
-                                                               new IsoLanguage("cs", "ces", Language.Czech)
+                                                               new IsoLanguage("cs", "ces", Language.Czech),
+                                                               new IsoLanguage(new List<string> { "pt-br", "pt-BR" }, "pob", Language.Brazilian),
                                                            };
 
         public static IsoLanguage Find(string isoCode)
@@ -49,7 +50,7 @@ namespace NzbDrone.Core.Parser
                 return All.SingleOrDefault(l => l.ThreeLetterCode == isoCode);
             }
 
-            return null;
+            return All.SingleOrDefault(l => l.AltCodes.Contains(isoCode));
         }
 
         public static IsoLanguage Get(Language language)

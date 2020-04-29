@@ -180,6 +180,13 @@ namespace NzbDrone.Core.Test.ParserTests
             result.Language.Id.Should().Be(Language.Portuguese.Id);
         }
         
+        [TestCase("Castle.2009.S01E14.Dublado.HDTV.XviD-LOL")]
+        public void should_parse_language_brazilian(string postTitle)
+        {
+            var result = Parser.Parser.ParseTitle(postTitle);
+            result.Language.Id.Should().Be(Language.Brazilian.Id);
+        }
+
         [TestCase("Salamander.S01E01.FLEMISH.HDTV.x264-BRiGAND")]
         public void should_parse_language_flemish(string postTitle)
         {

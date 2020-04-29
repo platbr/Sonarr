@@ -24,7 +24,7 @@ namespace NzbDrone.Core.Parser
                                                                 RegexOptions.Compiled);
 
 
-        private static readonly Regex SubtitleLanguageRegex = new Regex(".+?[-_. ](?<iso_code>[a-z]{2,3})$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex SubtitleLanguageRegex = new Regex(".+?[-_. ](?<iso_code>[a-z]{2}-[a-zA-Z]{2})(?:[-_. ]forced)?$|.+?[-_. ](?<iso_code>[a-z]{2,3})(?:[-_. ]forced)?$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         public static Language ParseLanguage(string title)
         {
@@ -95,6 +95,9 @@ namespace NzbDrone.Core.Parser
 
             if (lowerTitle.Contains("hebrew"))
                 return Language.Hebrew;
+
+            if (lowerTitle.Contains("dublado") || lowerTitle.Contains("brazilian"))
+                return Language.Brazilian;
 
             var regexLanguage = RegexLanguage(title);
 
