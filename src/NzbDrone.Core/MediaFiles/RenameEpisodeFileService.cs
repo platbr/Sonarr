@@ -31,9 +31,7 @@ namespace NzbDrone.Core.MediaFiles
         private readonly IEventAggregator _eventAggregator;
         private readonly IEpisodeService _episodeService;
         private readonly IBuildFileNames _filenameBuilder;
-        private readonly INamingConfigService _namingConfigService;
         private readonly IDiskProvider _diskProvider;
-        private readonly IKeepFileNameHistory _keepFileNameHistoryService;
         private readonly Logger _logger;
 
         public RenameEpisodeFileService(ISeriesService seriesService,
@@ -42,9 +40,7 @@ namespace NzbDrone.Core.MediaFiles
                                         IEventAggregator eventAggregator,
                                         IEpisodeService episodeService,
                                         IBuildFileNames filenameBuilder,
-                                        INamingConfigService namingConfigService,
                                         IDiskProvider diskProvider,
-                                        IKeepFileNameHistory keepFileNameHistoryService,
                                         Logger logger)
         {
             _seriesService = seriesService;
@@ -53,9 +49,7 @@ namespace NzbDrone.Core.MediaFiles
             _eventAggregator = eventAggregator;
             _episodeService = episodeService;
             _filenameBuilder = filenameBuilder;
-            _namingConfigService = namingConfigService;
             _diskProvider = diskProvider;
-            _keepFileNameHistoryService = keepFileNameHistoryService;
             _logger = logger;
         }
 
@@ -133,11 +127,6 @@ namespace NzbDrone.Core.MediaFiles
                     _logger.Debug("Renamed episode file: {0}", episodeFile);
 
                     _eventAggregator.PublishEvent(new EpisodeFileRenamedEvent(series, episodeFile, episodeFilePath));
-
-                    if (_namingConfigService.GetConfig().KeepFileNameHistory)
-                    {
-                        _keepFileNameHistoryService.KeepFileNameHistory(Path.Combine(series.Path, episodeFile.RelativePath), episodeFilePath);
-                    }
                 }
                 catch (SameFilenameException ex)
                 {

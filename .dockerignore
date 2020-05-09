@@ -3,6 +3,7 @@
 .github
 .gitattributes
 platbr/Dockerfile
+platbr/build-docker.sh
 
 # Build Folders (you can keep bin if you'd like, to store dlls and pdbs)
 src/**/[Bb]in/
