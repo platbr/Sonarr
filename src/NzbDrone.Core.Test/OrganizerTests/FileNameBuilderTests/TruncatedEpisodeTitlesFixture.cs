@@ -94,6 +94,23 @@ namespace NzbDrone.Core.Test.OrganizerTests.FileNameBuilderTests
         }
 
         [Test]
+        public void should_truncate_with_extension()
+        {
+            _series.Title = "The Fantastic Life of Mr. Sisko";
+            
+            _episodes[0].SeasonNumber = 2;
+            _episodes[0].EpisodeNumber = 18;
+            _episodes[0].Title = "This title has to be 197 characters in length, combined with the series title, quality and episode number it becomes 254ish and the extension puts it above the 255 limit and triggers the truncation";
+            _episodeFile.Quality.Quality = Quality.Bluray1080p;
+            _episodes = _episodes.Take(1).ToList();
+            _namingConfig.StandardEpisodeFormat = "{Series Title} - S{season:00}E{episode:00} - {Episode Title} {Quality Full}";
+
+            var result = Subject.BuildFileName(_episodes, _series, _episodeFile, ".mkv");
+            result.Length.Should().BeLessOrEqualTo(255);
+            result.Should().Be("The Fantastic Life of Mr. Sisko - S02E18 - This title has to be 197 characters in length, combined with the series title, quality and episode number it becomes 254ish and the extension puts it above the 255 limit and triggers the trunc... Bluray-1080p.mkv");
+        }
+
+        [Test]
         public void should_truncate_with_ellipsis_between_first_and_last_episode_titles()
         {
             _namingConfig.StandardEpisodeFormat = "{Series Title} - S{season:00}E{episode:00} - {Episode Title} {Quality Full}";
@@ -123,6 +140,46 @@ namespace NzbDrone.Core.Test.OrganizerTests.FileNameBuilderTests
             var result = Subject.BuildFileName(new List<Episode>{_episodes.First()}, _series, _episodeFile);
             result.Length.Should().BeLessOrEqualTo(255);
             result.Should().Be("Lorem ipsum dolor sit amet, consectetur adipiscing elit Maecenas et magna sem Morbi vitae volutpat quam, id porta arcu Orci varius natoque penatibus et magnis dis parturient montes nascetur ridiculus musu Cras vestibulum - S01E01 - Episode Ti... HDTV-720p");
+        }
+
+        [Test]
+        public void should_truncate_titles_measuring_series_title_bytes()
+        {
+            _series.Title = "Lor\u00E9m ipsum dolor sit amet, consectetur adipiscing elit Maecenas et magna sem Morbi vitae volutpat quam, id porta arcu Orci varius natoque penatibus et magnis dis parturient montes nascetur ridiculus musu Cras vestibulum";
+            _namingConfig.StandardEpisodeFormat = "{Series Title} - S{season:00}E{episode:00} - {Episode Title} {Quality Full}";
+            
+            var result = Subject.BuildFileName(new List<Episode> { _episodes.First() }, _series, _episodeFile);
+            result.GetByteCount().Should().BeLessOrEqualTo(255);
+
+            result.Should().Be("Lor\u00E9m ipsum dolor sit amet, consectetur adipiscing elit Maecenas et magna sem Morbi vitae volutpat quam, id porta arcu Orci varius natoque penatibus et magnis dis parturient montes nascetur ridiculus musu Cras vestibulum - S01E01 - Episode T... HDTV-720p");
+        }
+
+        [Test]
+        public void should_truncate_titles_measuring_episode_title_bytes()
+        {
+            _series.Title = "Lorem ipsum dolor sit amet, consectetur adipiscing elit Maecenas et magna sem Morbi vitae volutpat quam, id porta arcu Orci varius natoque penatibus et magnis dis parturient montes nascetur ridiculus musu Cras vestibulum";
+            _namingConfig.StandardEpisodeFormat = "{Series Title} - S{season:00}E{episode:00} - {Episode Title} {Quality Full}";
+
+            _episodes.First().Title = "Episod\u00E9 Title";
+
+            var result = Subject.BuildFileName(new List<Episode> { _episodes.First() }, _series, _episodeFile);
+            result.GetByteCount().Should().BeLessOrEqualTo(255);
+
+            result.Should().Be("Lorem ipsum dolor sit amet, consectetur adipiscing elit Maecenas et magna sem Morbi vitae volutpat quam, id porta arcu Orci varius natoque penatibus et magnis dis parturient montes nascetur ridiculus musu Cras vestibulum - S01E01 - Episod\u00E9 T... HDTV-720p");
+        }
+
+        [Test]
+        public void should_truncate_titles_measuring_episode_title_bytes_middle()
+        {
+            _series.Title = "Lorem ipsum dolor sit amet, consectetur adipiscing elit Maecenas et magna sem Morbi vitae volutpat quam, id porta arcu Orci varius natoque penatibus et magnis dis parturient montes nascetur ridiculus musu Cras vestibulum";
+            _namingConfig.StandardEpisodeFormat = "{Series Title} - S{season:00}E{episode:00} - {Episode Title} {Quality Full}";
+
+            _episodes.First().Title = "Episode T\u00E9tle";
+
+            var result = Subject.BuildFileName(new List<Episode> { _episodes.First() }, _series, _episodeFile);
+            result.GetByteCount().Should().BeLessOrEqualTo(255);
+
+            result.Should().Be("Lorem ipsum dolor sit amet, consectetur adipiscing elit Maecenas et magna sem Morbi vitae volutpat quam, id porta arcu Orci varius natoque penatibus et magnis dis parturient montes nascetur ridiculus musu Cras vestibulum - S01E01 - Episode T... HDTV-720p");
         }
     }
 }

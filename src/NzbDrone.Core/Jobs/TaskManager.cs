@@ -9,6 +9,7 @@ using NzbDrone.Core.DataAugmentation.Scene;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.HealthCheck;
 using NzbDrone.Core.Housekeeping;
+using NzbDrone.Core.ImportLists;
 using NzbDrone.Core.Indexers;
 using NzbDrone.Core.Lifecycle;
 using NzbDrone.Core.MediaFiles.Commands;
@@ -63,7 +64,7 @@ namespace NzbDrone.Core.Jobs
                 {
                     new ScheduledTask{ Interval = 1, TypeName = typeof(RefreshMonitoredDownloadsCommand).FullName},
                     new ScheduledTask{ Interval = 5, TypeName = typeof(MessagingCleanupCommand).FullName},
-                    new ScheduledTask{ Interval = 6*60, TypeName = typeof(ApplicationUpdateCommand).FullName},
+                    new ScheduledTask{ Interval = 6*60, TypeName = typeof(ApplicationUpdateCheckCommand).FullName},
                     new ScheduledTask{ Interval = 3*60, TypeName = typeof(UpdateSceneMappingCommand).FullName},
                     new ScheduledTask{ Interval = 6*60, TypeName = typeof(CheckHealthCommand).FullName},
                     new ScheduledTask{ Interval = 12*60, TypeName = typeof(RefreshSeriesCommand).FullName},
@@ -74,6 +75,12 @@ namespace NzbDrone.Core.Jobs
                     {
                         Interval = GetBackupInterval(),
                         TypeName = typeof(BackupCommand).FullName
+                    },
+
+                    new ScheduledTask
+                    {
+                        Interval = 24 * 60,
+                        TypeName = typeof(ImportListSyncCommand).FullName
                     },
 
                     new ScheduledTask
@@ -113,9 +120,19 @@ namespace NzbDrone.Core.Jobs
 
         private int GetBackupInterval()
         {
-            var interval = _configService.BackupInterval;
+            var intervalMinutes = _configService.BackupInterval;
 
-            return interval * 60 * 24;
+            if (intervalMinutes < 1)
+            {
+                intervalMinutes = 1;
+            }
+
+            if (intervalMinutes > 7)
+            {
+                intervalMinutes = 7;
+            }
+
+            return intervalMinutes * 60 * 24;
         }
 
         private int GetRssSyncInterval()
@@ -149,9 +166,12 @@ namespace NzbDrone.Core.Jobs
         public void HandleAsync(ConfigSavedEvent message)
         {
             var rss = _scheduledTaskRepository.GetDefinition(typeof(RssSyncCommand));
-            rss.Interval = _configService.RssSyncInterval;
+            rss.Interval = GetRssSyncInterval();
 
-            _scheduledTaskRepository.Update(rss);
+            var backup = _scheduledTaskRepository.GetDefinition(typeof(BackupCommand));
+            backup.Interval = GetBackupInterval();
+
+            _scheduledTaskRepository.UpdateMany(new List<ScheduledTask>{ rss, backup });
         }
     }
 }

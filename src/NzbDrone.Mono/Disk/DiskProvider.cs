@@ -20,15 +20,17 @@ namespace NzbDrone.Mono.Disk
         private readonly Logger _logger;
         private readonly IProcMountProvider _procMountProvider;
         private readonly ISymbolicLinkResolver _symLinkResolver;
+        private readonly ICreateRefLink _createRefLink;
 
         // Mono supports sending -1 for a uint to indicate that the owner or group should not be set
         // `unchecked((uint)-1)` and `uint.MaxValue` are the same thing.
         private const uint UNCHANGED_ID = uint.MaxValue;
 
-        public DiskProvider(IProcMountProvider procMountProvider, ISymbolicLinkResolver symLinkResolver, Logger logger)
+        public DiskProvider(IProcMountProvider procMountProvider, ISymbolicLinkResolver symLinkResolver, ICreateRefLink createRefLink, Logger logger)
         {
             _procMountProvider = procMountProvider;
             _symLinkResolver = symLinkResolver;
+            _createRefLink = createRefLink;
             _logger = logger;
         }
 
@@ -56,29 +58,102 @@ namespace NzbDrone.Mono.Disk
 
         public override void InheritFolderPermissions(string filename)
         {
-            Ensure.That(filename, () => filename).IsValidPath();
 
+        }
+
+        public override void SetEveryonePermissions(string filename)
+        {
+            
+        }
+
+        public override void SetFilePermissions(string path, string mask, string group)
+        {
+            var permissions = NativeConvert.FromOctalPermissionString(mask);
+
+            SetPermissions(path, mask, group, permissions);
+        }
+
+        public override void SetPermissions(string path, string mask, string group)
+        {
+            var permissions = NativeConvert.FromOctalPermissionString(mask);
+
+            if (File.Exists(path))
+            {
+                permissions = GetFilePermissions(permissions);
+            }
+
+            SetPermissions(path, mask, group, permissions);
+        }
+
+        protected void SetPermissions(string path, string mask, string group, FilePermissions permissions)
+        {
+            Logger.Debug("Setting permissions: {0} on {1}", mask, path);
+
+            // Preserve non-access permissions
+            if (Syscall.stat(path, out var curStat) < 0)
+            {
+                var error = Stdlib.GetLastError();
+
+                throw new LinuxPermissionsException("Error getting current permissions: " + error);
+            }
+
+            // Preserve existing non-access permissions unless mask is 4 digits
+            if (mask.Length < 4)
+            {
+                permissions |= curStat.st_mode & ~FilePermissions.ACCESSPERMS;
+            }
+
+            if (Syscall.chmod(path, permissions) < 0)
+            {
+                var error = Stdlib.GetLastError();
+
+                throw new LinuxPermissionsException("Error setting permissions: " + error);
+            }
+
+            var groupId = GetGroupId(group);
+
+            if (Syscall.chown(path, unchecked((uint)-1), groupId) < 0)
+            {
+                var error = Stdlib.GetLastError();
+
+                throw new LinuxPermissionsException("Error setting group: " + error);
+            }
+        }
+
+        private static FilePermissions GetFilePermissions(FilePermissions permissions)
+        {
+            permissions &= ~(FilePermissions.S_IXUSR | FilePermissions.S_IXGRP | FilePermissions.S_IXOTH);
+
+            return permissions;
+        }
+
+        public override bool IsValidFolderPermissionMask(string mask)
+        {
             try
             {
-                var fs = File.GetAccessControl(filename);
-                fs.SetAccessRuleProtection(false, false);
-                File.SetAccessControl(filename, fs);
+                var permissions = NativeConvert.FromOctalPermissionString(mask);
+
+                if ((permissions & ~FilePermissions.ACCESSPERMS) != 0)
+                {
+                    // Only allow access permissions
+                    return false;
+                }
+
+                if ((permissions & FilePermissions.S_IRWXU) != FilePermissions.S_IRWXU)
+                {
+                    // We expect at least full owner permissions (700)
+                    return false;
+                }
+
+                return true;
             }
-            catch (NotImplementedException)
+            catch (FormatException)
             {
-            }
-            catch (PlatformNotSupportedException)
-            {
+                return false;
             }
         }
 
-        public override void SetPermissions(string path, string mask, string user, string group)
-        {
-            SetPermissions(path, mask);
-            SetOwner(path, user, group);
-        }
-
-        public override void CopyPermissions(string sourcePath, string targetPath, bool includeOwner)
+        public override void CopyPermissions(string sourcePath, string targetPath)
         {
             try
             {
@@ -88,11 +163,6 @@ namespace NzbDrone.Mono.Disk
                 if (srcStat.st_mode != tgtStat.st_mode)
                 {
                     Syscall.chmod(targetPath, srcStat.st_mode);
-                }
-
-                if (includeOwner && (srcStat.st_uid != tgtStat.st_uid || srcStat.st_gid != tgtStat.st_gid))
-                {
-                    Syscall.chown(targetPath, srcStat.st_uid, srcStat.st_gid);
                 }
             }
             catch (Exception ex)
@@ -139,6 +209,19 @@ namespace NzbDrone.Mono.Disk
             var mount = GetMount(path);
 
             return mount?.TotalSize;
+        }
+
+        protected override void CloneFileInternal(string source, string destination, bool overwrite)
+        {
+            if (!File.Exists(destination) && !UnixFileSystemInfo.GetFileSystemEntry(source).IsSymbolicLink)
+            {
+                if (_createRefLink.TryCreateRefLink(source, destination))
+                {
+                    return;
+                }
+            }
+
+            CopyFileInternal(source, destination, overwrite);
         }
 
         protected override void CopyFileInternal(string source, string destination, bool overwrite)
@@ -343,6 +426,11 @@ namespace NzbDrone.Mono.Disk
             }
         }
 
+        public override bool TryRenameFile(string source, string destination)
+        {
+            return Syscall.rename(source, destination) == 0;
+        }
+
         public override bool TryCreateHardLink(string source, string destination)
         {
             try
@@ -354,44 +442,28 @@ namespace NzbDrone.Mono.Disk
                 fileInfo.CreateLink(destination);
                 return true;
             }
+            catch (UnixIOException ex)
+            {
+                if (ex.ErrorCode == Errno.EXDEV)
+                {
+                    Logger.Trace("Hardlink '{0}' to '{1}' failed due to cross-device access.", source, destination);
+                }
+                else
+                {
+                    Logger.Debug(ex, "Hardlink '{0}' to '{1}' failed.", source, destination);
+                }
+                return false;
+            }
             catch (Exception ex)
             {
-                Logger.Debug(ex, string.Format("Hardlink '{0}' to '{1}' failed.", source, destination));
+                Logger.Debug(ex, "Hardlink '{0}' to '{1}' failed.", source, destination);
                 return false;
             }
         }
 
-        private void SetPermissions(string path, string mask)
+        public override bool TryCreateRefLink(string source, string destination)
         {
-            Logger.Debug("Setting permissions: {0} on {1}", mask, path);
-
-            var filePermissions = NativeConvert.FromOctalPermissionString(mask);
-
-            if (Syscall.chmod(path, filePermissions) < 0)
-            {
-                var error = Stdlib.GetLastError();
-
-                throw new LinuxPermissionsException("Error setting file permissions: " + error);
-            }
-        }
-
-        private void SetOwner(string path, string user, string group)
-        {
-            if (string.IsNullOrWhiteSpace(user) && string.IsNullOrWhiteSpace(group))
-            {
-                Logger.Debug("User and Group for chown not configured, skipping chown.");
-                return;
-            }
-
-            var userId = GetUserId(user);
-            var groupId = GetGroupId(group);
-
-            if (Syscall.chown(path, userId, groupId) < 0)
-            {
-                var error = Stdlib.GetLastError();
-
-                throw new LinuxPermissionsException("Error setting file owner and/or group: " + error);
-            }
+            return _createRefLink.TryCreateRefLink(source, destination);
         }
 
         private uint GetUserId(string user)

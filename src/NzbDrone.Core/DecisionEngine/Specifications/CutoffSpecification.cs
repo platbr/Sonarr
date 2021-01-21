@@ -1,6 +1,7 @@
 using System.Linq;
 using NLog;
 using NzbDrone.Core.IndexerSearch.Definitions;
+using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Profiles.Releases;
 
@@ -9,13 +10,13 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
     public class CutoffSpecification : IDecisionEngineSpecification
     {
         private readonly UpgradableSpecification _upgradableSpecification;
-        private readonly IPreferredWordService _preferredWordServiceCalculator;
+        private readonly IEpisodeFilePreferredWordCalculator _episodeFilePreferredWordCalculator;
         private readonly Logger _logger;
 
-        public CutoffSpecification(UpgradableSpecification upgradableSpecification, IPreferredWordService preferredWordServiceCalculator, Logger logger)
+        public CutoffSpecification(UpgradableSpecification upgradableSpecification, IEpisodeFilePreferredWordCalculator episodeFilePreferredWordCalculator, Logger logger)
         {
             _upgradableSpecification = upgradableSpecification;
-            _preferredWordServiceCalculator = preferredWordServiceCalculator;
+            _episodeFilePreferredWordCalculator = episodeFilePreferredWordCalculator;
             _logger = logger;
         }
 
@@ -38,10 +39,10 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
                 _logger.Debug("Comparing file quality and language with report. Existing file is {0} - {1}", file.Quality, file.Language);
 
                 if (!_upgradableSpecification.CutoffNotMet(qualityProfile,
-                                                           languageProfile, 
+                                                           languageProfile,
                                                            file.Quality, 
                                                            file.Language,
-                                                           _preferredWordServiceCalculator.Calculate(subject.Series, file.GetSceneOrFileName(), subject.Release.IndexerId),
+                                                           _episodeFilePreferredWordCalculator.Calculate(subject.Series, file),
                                                            subject.ParsedEpisodeInfo.Quality,
                                                            subject.PreferredWordScore))
                 {

@@ -171,7 +171,7 @@ export const defaultState = {
     {
       name: 'tags',
       label: 'Tags',
-      isSortable: false,
+      isSortable: true,
       isVisible: false
     },
     {
@@ -234,12 +234,6 @@ export const defaultState = {
       const { statistics = {} } = item;
 
       return statistics.seasonCount;
-    },
-
-    sizeOnDisk: function(item) {
-      const { statistics = {} } = item;
-
-      return statistics.sizeOnDisk;
     },
 
     ratings: function(item) {

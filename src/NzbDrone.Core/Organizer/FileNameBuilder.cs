@@ -4,12 +4,16 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using FluentMigrator.Builders.Create.Column;
 using NLog;
 using NzbDrone.Common.Cache;
+using NzbDrone.Common.Disk;
 using NzbDrone.Common.EnsureThat;
+using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.MediaInfo;
+using NzbDrone.Core.Parser;
 using NzbDrone.Core.Profiles.Releases;
 using NzbDrone.Core.Qualities;
 using NzbDrone.Core.Tv;
@@ -18,8 +22,8 @@ namespace NzbDrone.Core.Organizer
 {
     public interface IBuildFileNames
     {
-        string BuildFileName(List<Episode> episodes, Series series, EpisodeFile episodeFile, NamingConfig namingConfig = null, List<string> preferredWords = null);
-        string BuildFilePath(Series series, int seasonNumber, string fileName, string extension);
+        string BuildFileName(List<Episode> episodes, Series series, EpisodeFile episodeFile, string extension = "", NamingConfig namingConfig = null, List<string> preferredWords = null);
+        string BuildFilePath(List<Episode> episodes, Series series, EpisodeFile episodeFile, string extension, NamingConfig namingConfig = null, List<string> preferredWords = null);
         string BuildSeasonPath(Series series, int seasonNumber);
         BasicNamingConfig GetBasicNamingConfig(NamingConfig nameSpec);
         string GetSeriesFolder(Series series, NamingConfig namingConfig = null);
@@ -96,7 +100,7 @@ namespace NzbDrone.Core.Organizer
             _logger = logger;
         }
 
-        public string BuildFileName(List<Episode> episodes, Series series, EpisodeFile episodeFile, NamingConfig namingConfig = null, List<string> preferredWords = null)
+        private string BuildFileName(List<Episode> episodes, Series series, EpisodeFile episodeFile, string extension, int maxPath, NamingConfig namingConfig = null, List<string> preferredWords = null)
         {
             if (namingConfig == null)
             {
@@ -105,7 +109,7 @@ namespace NzbDrone.Core.Organizer
 
             if (!namingConfig.RenameEpisodes)
             {
-                return GetOriginalTitle(episodeFile);
+                return GetOriginalTitle(episodeFile) + extension;
             }
 
             if (namingConfig.StandardEpisodeFormat.IsNullOrWhiteSpace() && series.SeriesType == SeriesTypes.Standard)
@@ -127,7 +131,7 @@ namespace NzbDrone.Core.Organizer
 
             episodes = episodes.OrderBy(e => e.SeasonNumber).ThenBy(e => e.EpisodeNumber).ToList();
 
-            if (series.SeriesType == SeriesTypes.Daily)
+            if (series.SeriesType == SeriesTypes.Daily && episodes.First().SeasonNumber > 0)
             {
                 pattern = namingConfig.DailyEpisodeFormat;
             }
@@ -140,9 +144,9 @@ namespace NzbDrone.Core.Organizer
             var splitPatterns = pattern.Split(new char[] { '\\', '/' }, StringSplitOptions.RemoveEmptyEntries);
             var components = new List<string>();
 
-            foreach (var s in splitPatterns)
+            for (var i = 0; i < splitPatterns.Length; i++)
             {
-                var splitPattern = s;
+                var splitPattern = splitPatterns[i];
                 var tokenHandlers = new Dictionary<string, Func<TokenMatch, string>>(FileNameBuilderTokenEqualityComparer.Instance);
                 splitPattern = AddSeasonEpisodeNumberingTokens(splitPattern, tokenHandlers, episodes, namingConfig);
                 splitPattern = AddAbsoluteNumberingTokens(splitPattern, tokenHandlers, series, episodes, namingConfig);
@@ -159,7 +163,12 @@ namespace NzbDrone.Core.Organizer
                 AddPreferredWords(tokenHandlers, series, episodeFile, preferredWords);
 
                 var component = ReplaceTokens(splitPattern, tokenHandlers, namingConfig, true).Trim();
-                var maxEpisodeTitleLength = 255 - GetLengthWithoutEpisodeTitle(component, namingConfig);
+                var maxPathSegmentLength = Math.Min(LongPathSupport.MaxFileNameLength, maxPath);
+                if (i == splitPatterns.Length - 1)
+                {
+                    maxPathSegmentLength -= extension.GetByteCount();
+                }
+                var maxEpisodeTitleLength = maxPathSegmentLength - GetLengthWithoutEpisodeTitle(component, namingConfig);
 
                 AddEpisodeTitleTokens(tokenHandlers, episodes, maxEpisodeTitleLength);
                 component = ReplaceTokens(component, tokenHandlers, namingConfig).Trim();
@@ -171,18 +180,25 @@ namespace NzbDrone.Core.Organizer
                 components.Add(component);
             }
 
-            return string.Join(Path.DirectorySeparatorChar.ToString(), components);
+            return string.Join(Path.DirectorySeparatorChar.ToString(), components) + extension;
         }
 
-        public string BuildFilePath(Series series, int seasonNumber, string fileName, string extension)
+        public string BuildFileName(List<Episode> episodes, Series series, EpisodeFile episodeFile, string extension = "", NamingConfig namingConfig = null, List<string> preferredWords = null)
+        {
+            return BuildFileName(episodes, series, episodeFile, extension, LongPathSupport.MaxFilePathLength, namingConfig, preferredWords);
+        }
+
+        public string BuildFilePath(List<Episode> episodes, Series series, EpisodeFile episodeFile, string extension, NamingConfig namingConfig = null, List<string> preferredWords = null)
         {
             Ensure.That(extension, () => extension).IsNotNullOrWhiteSpace();
+            
+            var seasonPath = BuildSeasonPath(series, episodes.First().SeasonNumber);
+            var remainingPathLength = LongPathSupport.MaxFilePathLength - seasonPath.GetByteCount() - 1;
+            var fileName = BuildFileName(episodes, series, episodeFile, extension, remainingPathLength, namingConfig, preferredWords);
 
-            var path = BuildSeasonPath(series, seasonNumber);
-
-            return Path.Combine(path, fileName + extension);
+            return Path.Combine(seasonPath, fileName);
         }
-
+        
         public string BuildSeasonPath(Series series, int seasonNumber)
         {
             var path = series.Path;
@@ -656,9 +672,23 @@ namespace NzbDrone.Core.Organizer
             var cultures = CultureInfo.GetCultures(CultureTypes.NeutralCultures);
             for (int i = 0; i < tokens.Count; i++)
             {
+                if (tokens[i] == "Swedis")
+                { 
+                    // Probably typo in mediainfo (should be 'Swedish')
+                    tokens[i] = "SV";
+                    continue;
+                }
+
+                if (tokens[i] == "Chinese" && OsInfo.IsNotWindows)
+                {
+                    // Mono only has 'Chinese (Simplified)' & 'Chinese (Traditional)'
+                    tokens[i] = "ZH";
+                    continue;
+                }
+
                 try
                 {
-                    var cultureInfo = cultures.FirstOrDefault(p => p.EnglishName == tokens[i]);
+                    var cultureInfo = cultures.FirstOrDefault(p => p.EnglishName.RemoveAccent() == tokens[i]);
 
                     if (cultureInfo != null)
                         tokens[i] = cultureInfo.TwoLetterISOLanguageName.ToUpper();
@@ -905,33 +935,35 @@ namespace NzbDrone.Core.Organizer
 
             var joined = string.Join(separator, titles);
 
-            if (joined.Length <= maxLength)
+            if (joined.GetByteCount() <= maxLength)
             {
                 return joined;
             }
 
             var firstTitle = titles.First();
+            var firstTitleLength = firstTitle.GetByteCount();
 
             if (titles.Count >= 2)
             {
                 var lastTitle = titles.Last();
-                if (firstTitle.Length + lastTitle.Length + 3 <= maxLength)
+                var lastTitleLength = lastTitle.GetByteCount();
+                if (firstTitleLength + lastTitleLength + 3 <= maxLength)
                 {
-                    return $"{firstTitle.Trim(' ', '.')}{{ellipsis}}{lastTitle}";
+                    return $"{firstTitle.TrimEnd(' ', '.')}{{ellipsis}}{lastTitle}";
                 }
             }
 
-            if (titles.Count > 1 && firstTitle.Length + 3 <= maxLength)
+            if (titles.Count > 1 && firstTitleLength + 3 <= maxLength)
             {
-                return $"{firstTitle.Trim(' ', '.')}{{ellipsis}}";
+                return $"{firstTitle.TrimEnd(' ', '.')}{{ellipsis}}";
             }
 
-            if (titles.Count == 1 && firstTitle.Length <= maxLength)
+            if (titles.Count == 1 && firstTitleLength <= maxLength)
             {
                 return firstTitle;
             }
 
-            return $"{firstTitle.Substring(0, maxLength - 3).Trim(' ', '.')}{{ellipsis}}";
+            return $"{firstTitle.Truncate(maxLength - 3).TrimEnd(' ', '.')}{{ellipsis}}";
         }
 
         private string CleanupEpisodeTitle(string title)
@@ -993,7 +1025,7 @@ namespace NzbDrone.Core.Organizer
 
             var result = ReplaceTokens(pattern, tokenHandlers, namingConfig);
 
-            return result.Length;
+            return result.GetByteCount();
         }
     }
 

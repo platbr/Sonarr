@@ -18,9 +18,7 @@ namespace Sonarr.Api.V3.Config
         public RescanAfterRefreshType RescanAfterRefresh { get; set; }
 
         public bool SetPermissionsLinux { get; set; }
-        public string FileChmod { get; set; }
-        public string FolderChmod { get; set; }
-        public string ChownUser { get; set; }
+        public string ChmodFolder { get; set; }
         public string ChownGroup { get; set; }
 
         public EpisodeTitleRequiredType EpisodeTitleRequired { get; set; }
@@ -48,9 +46,7 @@ namespace Sonarr.Api.V3.Config
                 RescanAfterRefresh = model.RescanAfterRefresh,
 
                 SetPermissionsLinux = model.SetPermissionsLinux,
-                FileChmod = model.FileChmod,
-                FolderChmod = model.FolderChmod,
-                ChownUser = model.ChownUser,
+                ChmodFolder = model.ChmodFolder,
                 ChownGroup = model.ChownGroup,
 
                 EpisodeTitleRequired = model.EpisodeTitleRequired,

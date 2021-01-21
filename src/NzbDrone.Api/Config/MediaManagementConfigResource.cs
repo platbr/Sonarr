@@ -15,9 +15,7 @@ namespace NzbDrone.Api.Config
         public FileDateType FileDate { get; set; }
 
         public bool SetPermissionsLinux { get; set; }
-        public string FileChmod { get; set; }
-        public string FolderChmod { get; set; }
-        public string ChownUser { get; set; }
+        public string ChmodFolder { get; set; }
         public string ChownGroup { get; set; }
 
         public bool SkipFreeSpaceCheckWhenImporting { get; set; }
@@ -41,9 +39,7 @@ namespace NzbDrone.Api.Config
                 FileDate = model.FileDate,
 
                 SetPermissionsLinux = model.SetPermissionsLinux,
-                FileChmod = model.FileChmod,
-                FolderChmod = model.FolderChmod,
-                ChownUser = model.ChownUser,
+                ChmodFolder = model.ChmodFolder,
                 ChownGroup = model.ChownGroup,
 
                 SkipFreeSpaceCheckWhenImporting = model.SkipFreeSpaceCheckWhenImporting,

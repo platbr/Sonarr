@@ -26,10 +26,8 @@ namespace NzbDrone.Core.Test.HealthCheck.Checks
                    .Returns(_blockedIndexers);
         }
 
-        private Mock<IIndexer> GivenIndexer(int i, double backoffHours, double failureHours)
+        private Mock<IIndexer> GivenIndexer(int id, double backoffHours, double failureHours)
         {
-            var id = i;
-
             var mockIndexer = new Mock<IIndexer>();
             mockIndexer.SetupGet(s => s.Definition).Returns(new IndexerDefinition { Id = id });
             mockIndexer.SetupGet(s => s.SupportsSearch).Returns(true);
@@ -61,7 +59,7 @@ namespace NzbDrone.Core.Test.HealthCheck.Checks
         [Test]
         public void should_return_warning_if_indexer_unavailable()
         {
-            GivenIndexer(1, 10.0, 24.0);
+            GivenIndexer(1, 2.0, 4.0);
             GivenIndexer(2, 0.0, 0.0);
 
             Subject.Check().ShouldBeWarning();
@@ -70,7 +68,7 @@ namespace NzbDrone.Core.Test.HealthCheck.Checks
         [Test]
         public void should_return_error_if_all_indexers_unavailable()
         {
-            GivenIndexer(1, 10.0, 24.0);
+            GivenIndexer(1, 2.0, 4.0);
 
             Subject.Check().ShouldBeError();
         }
@@ -78,8 +76,8 @@ namespace NzbDrone.Core.Test.HealthCheck.Checks
         [Test]
         public void should_return_warning_if_few_indexers_unavailable()
         {
-            GivenIndexer(1, 10.0, 24.0);
-            GivenIndexer(2, 10.0, 24.0);
+            GivenIndexer(1, 2.0, 4.0);
+            GivenIndexer(2, 2.0, 4.0);
             GivenIndexer(3, 0.0, 0.0);
 
             Subject.Check().ShouldBeWarning();

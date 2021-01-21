@@ -2,7 +2,6 @@ using System.Linq;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using NzbDrone.Common;
@@ -18,7 +17,7 @@ namespace NzbDrone.Core.RootFolders
         List<RootFolder> AllWithUnmappedFolders();
         RootFolder Add(RootFolder rootDir);
         void Remove(int id);
-        RootFolder Get(int id);
+        RootFolder Get(int id, bool timeout);
         string GetBestRootFolderPath(string path);
     }
 
@@ -64,6 +63,7 @@ namespace NzbDrone.Core.RootFolders
         public List<RootFolder> AllWithUnmappedFolders()
         {
             var rootFolders = _rootFolderRepository.All().ToList();
+            var seriesPaths = _seriesRepository.AllSeriesPaths();
 
             rootFolders.ForEach(folder =>
             {
@@ -71,7 +71,7 @@ namespace NzbDrone.Core.RootFolders
                 {
                     if (folder.Path.IsPathValid())
                     {
-                        GetDetails(folder);
+                        GetDetails(folder, seriesPaths, true);
                     }
                 }
                 //We don't want an exception to prevent the root folders from loading in the UI, so they can still be deleted
@@ -110,8 +110,9 @@ namespace NzbDrone.Core.RootFolders
             }
 
             _rootFolderRepository.Insert(rootFolder);
+            var seriesPaths = _seriesRepository.AllSeriesPaths();
 
-            GetDetails(rootFolder);
+            GetDetails(rootFolder, seriesPaths, true);
 
             return rootFolder;
         }
@@ -121,7 +122,7 @@ namespace NzbDrone.Core.RootFolders
             _rootFolderRepository.Delete(id);
         }
 
-        private List<UnmappedFolder> GetUnmappedFolders(string path)
+        private List<UnmappedFolder> GetUnmappedFolders(string path, List<string> seriesPaths)
         {
             _logger.Debug("Generating list of unmapped folders");
 
@@ -131,7 +132,6 @@ namespace NzbDrone.Core.RootFolders
             }
 
             var results = new List<UnmappedFolder>();
-            var series = _seriesRepository.All().ToList();
 
             if (!_diskProvider.FolderExists(path))
             {
@@ -140,7 +140,7 @@ namespace NzbDrone.Core.RootFolders
             }
 
             var possibleSeriesFolders = _diskProvider.GetDirectories(path).ToList();
-            var unmappedFolders = possibleSeriesFolders.Except(series.Select(s => s.Path), PathEqualityComparer.Instance).ToList();
+            var unmappedFolders = possibleSeriesFolders.Except(seriesPaths, PathEqualityComparer.Instance).ToList();
 
             foreach (string unmappedFolder in unmappedFolders)
             {
@@ -155,10 +155,12 @@ namespace NzbDrone.Core.RootFolders
             return results.OrderBy(u => u.Name, StringComparer.InvariantCultureIgnoreCase).ToList();
         }
 
-        public RootFolder Get(int id)
+        public RootFolder Get(int id, bool timeout)
         {
             var rootFolder = _rootFolderRepository.Get(id);
-            GetDetails(rootFolder);
+            var seriesPaths = _seriesRepository.AllSeriesPaths();
+
+            GetDetails(rootFolder, seriesPaths, timeout);
 
             return rootFolder;
         }
@@ -177,7 +179,7 @@ namespace NzbDrone.Core.RootFolders
             return possibleRootFolder.Path;
         }
 
-        private void GetDetails(RootFolder rootFolder)
+        private void GetDetails(RootFolder rootFolder, List<string> seriesPaths, bool timeout)
         {
             Task.Run(() =>
             {
@@ -186,9 +188,9 @@ namespace NzbDrone.Core.RootFolders
                     rootFolder.Accessible = true;
                     rootFolder.FreeSpace = _diskProvider.GetAvailableSpace(rootFolder.Path);
                     rootFolder.TotalSpace = _diskProvider.GetTotalSize(rootFolder.Path);
-                    rootFolder.UnmappedFolders = GetUnmappedFolders(rootFolder.Path);
+                    rootFolder.UnmappedFolders = GetUnmappedFolders(rootFolder.Path, seriesPaths);
                 }
-            }).Wait(5000);
+            }).Wait(timeout ? 5000 : -1);
         }
     }
 }

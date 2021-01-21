@@ -120,6 +120,7 @@ namespace Sonarr.Api.V3.Series
             MapCoversToLocal(seriesResources.ToArray());
             LinkSeriesStatistics(seriesResources, seriesStats);
             PopulateAlternateTitles(seriesResources);
+            seriesResources.ForEach(LinkRootFolderPath);
 
             return seriesResources;
         }
@@ -168,8 +169,9 @@ namespace Sonarr.Api.V3.Series
         private void DeleteSeries(int id)
         {
             var deleteFiles = Request.GetBooleanQueryParameter("deleteFiles");
+            var addImportListExclusion = Request.GetBooleanQueryParameter("addImportListExclusion");
 
-            _seriesService.DeleteSeries(id, deleteFiles);
+            _seriesService.DeleteSeries(id, deleteFiles, addImportListExclusion);
         }
 
         private SeriesResource GetSeriesResource(NzbDrone.Core.Tv.Series series, bool includeSeasonImages)
@@ -238,7 +240,7 @@ namespace Sonarr.Api.V3.Series
 
             if (mappings == null) return;
 
-            resource.AlternateTitles = mappings.Select(v => new AlternateTitleResource { Title = v.Title, SeasonNumber = v.SeasonNumber, SceneSeasonNumber = v.SceneSeasonNumber }).ToList();
+            resource.AlternateTitles = mappings.ConvertAll(AlternateTitleResourceMapper.ToResource);
         }
 
         private void LinkRootFolderPath(SeriesResource resource)

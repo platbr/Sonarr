@@ -9,7 +9,7 @@ function findMatchingItems(ids, items) {
   });
 }
 
-function createMatchingSeriesSelector() {
+function createUnorderedMatchingSeriesSelector() {
   return createSelector(
     (state, { seriesIds }) => seriesIds,
     createAllSeriesSelector(),
@@ -17,10 +17,38 @@ function createMatchingSeriesSelector() {
   );
 }
 
+function createMatchingSeriesSelector() {
+  return createSelector(
+    createUnorderedMatchingSeriesSelector(),
+    (series) => {
+      return series.sort((seriesA, seriesB) => {
+        const sortTitleA = seriesA.sortTitle;
+        const sortTitleB = seriesB.sortTitle;
+
+        if (sortTitleA > sortTitleB) {
+          return 1;
+        } else if (sortTitleA < sortTitleB) {
+          return -1;
+        }
+
+        return 0;
+      });
+    }
+  );
+}
+
 function createMatchingDelayProfilesSelector() {
   return createSelector(
     (state, { delayProfileIds }) => delayProfileIds,
     (state) => state.settings.delayProfiles.items,
+    findMatchingItems
+  );
+}
+
+function createMatchingImportListsSelector() {
+  return createSelector(
+    (state, { importListIds }) => importListIds,
+    (state) => state.settings.importLists.items,
     findMatchingItems
   );
 }
@@ -45,12 +73,14 @@ function createMapStateToProps() {
   return createSelector(
     createMatchingSeriesSelector(),
     createMatchingDelayProfilesSelector(),
+    createMatchingImportListsSelector(),
     createMatchingNotificationsSelector(),
     createMatchingReleaseProfilesSelector(),
-    (series, delayProfiles, notifications, releaseProfiles) => {
+    (series, delayProfiles, importLists, notifications, releaseProfiles) => {
       return {
         series,
         delayProfiles,
+        importLists,
         notifications,
         releaseProfiles
       };

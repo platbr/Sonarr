@@ -9,10 +9,12 @@ using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Indexers;
 using NzbDrone.Core.Parser.Model;
+using NzbDrone.Core.Profiles.Languages;
+using NzbDrone.Core.Profiles.Qualities;
 
 namespace Sonarr.Api.V3.Indexers
 {
-    class ReleasePushModule : ReleaseModuleBase
+    public class ReleasePushModule : ReleaseModuleBase
     {
         private readonly IMakeDownloadDecision _downloadDecisionMaker;
         private readonly IProcessDownloadDecisions _downloadDecisionProcessor;
@@ -22,7 +24,10 @@ namespace Sonarr.Api.V3.Indexers
         public ReleasePushModule(IMakeDownloadDecision downloadDecisionMaker,
                                  IProcessDownloadDecisions downloadDecisionProcessor,
                                  IIndexerFactory indexerFactory,
-                                 Logger logger)
+                                 ILanguageProfileService languageProfileService,
+                                 IQualityProfileService qualityProfileService,
+                                 Logger logger) :
+            base(languageProfileService, qualityProfileService)
         {
             _downloadDecisionMaker = downloadDecisionMaker;
             _downloadDecisionProcessor = downloadDecisionProcessor;

@@ -18,9 +18,12 @@ import IndexerSelectInputConnector from './IndexerSelectInputConnector';
 import RootFolderSelectInputConnector from './RootFolderSelectInputConnector';
 import SeriesTypeSelectInput from './SeriesTypeSelectInput';
 import EnhancedSelectInput from './EnhancedSelectInput';
+import EnhancedSelectInputConnector from './EnhancedSelectInputConnector';
 import TagInputConnector from './TagInputConnector';
+import TagSelectInputConnector from './TagSelectInputConnector';
 import TextTagInputConnector from './TextTagInputConnector';
 import TextInput from './TextInput';
+import UMaskInput from './UMaskInput';
 import FormInputHelpText from './FormInputHelpText';
 import styles from './FormInputGroup.css';
 
@@ -71,6 +74,9 @@ function getComponent(type) {
     case inputTypes.SELECT:
       return EnhancedSelectInput;
 
+    case inputTypes.DYNAMIC_SELECT:
+      return EnhancedSelectInputConnector;
+
     case inputTypes.SERIES_TYPE_SELECT:
       return SeriesTypeSelectInput;
 
@@ -79,6 +85,12 @@ function getComponent(type) {
 
     case inputTypes.TEXT_TAG:
       return TextTagInputConnector;
+
+    case inputTypes.TAG_SELECT:
+      return TagSelectInputConnector;
+
+    case inputTypes.UMASK:
+      return UMaskInput;
 
     default:
       return TextInput;
@@ -187,7 +199,7 @@ function FormInputGroup(props) {
       }
 
       {
-        !checkInput && helpTextWarning &&
+        (!checkInput || helpText) && helpTextWarning &&
           <FormInputHelpText
             text={helpTextWarning}
             isWarning={true}
@@ -210,7 +222,7 @@ function FormInputGroup(props) {
               key={index}
               text={error.message}
               link={error.link}
-              linkTooltip={error.detailedMessage}
+              tooltip={error.detailedMessage}
               isError={true}
               isCheckInput={checkInput}
             />
@@ -225,7 +237,7 @@ function FormInputGroup(props) {
               key={index}
               text={warning.message}
               link={warning.link}
-              linkTooltip={warning.detailedMessage}
+              tooltip={warning.detailedMessage}
               isWarning={true}
               isCheckInput={checkInput}
             />

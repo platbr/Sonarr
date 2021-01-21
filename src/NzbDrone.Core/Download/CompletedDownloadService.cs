@@ -2,8 +2,11 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using NLog;
+using NLog.Fluent;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Core.Download.TrackedDownloads;
 using NzbDrone.Core.History;
 using NzbDrone.Core.MediaFiles;
@@ -25,24 +28,30 @@ namespace NzbDrone.Core.Download
     {
         private readonly IEventAggregator _eventAggregator;
         private readonly IHistoryService _historyService;
+        private readonly IProvideImportItemService _provideImportItemService;
         private readonly IDownloadedEpisodesImportService _downloadedEpisodesImportService;
         private readonly IParsingService _parsingService;
         private readonly ISeriesService _seriesService;
         private readonly ITrackedDownloadAlreadyImported _trackedDownloadAlreadyImported;
+        private readonly Logger _logger;
 
         public CompletedDownloadService(IEventAggregator eventAggregator,
                                         IHistoryService historyService,
+                                        IProvideImportItemService provideImportItemService,
                                         IDownloadedEpisodesImportService downloadedEpisodesImportService,
                                         IParsingService parsingService,
                                         ISeriesService seriesService,
-                                        ITrackedDownloadAlreadyImported trackedDownloadAlreadyImported)
+                                        ITrackedDownloadAlreadyImported trackedDownloadAlreadyImported,
+                                        Logger logger)
         {
             _eventAggregator = eventAggregator;
             _historyService = historyService;
+            _provideImportItemService = provideImportItemService;
             _downloadedEpisodesImportService = downloadedEpisodesImportService;
             _parsingService = parsingService;
             _seriesService = seriesService;
             _trackedDownloadAlreadyImported = trackedDownloadAlreadyImported;
+            _logger = logger;
         }
 
         public void Check(TrackedDownload trackedDownload)
@@ -51,6 +60,8 @@ namespace NzbDrone.Core.Download
             {
                 return;
             }
+
+            SetImportItem(trackedDownload);
 
             // Only process tracked downloads that are still downloading
             if (trackedDownload.State != TrackedDownloadState.Downloading)
@@ -66,18 +77,8 @@ namespace NzbDrone.Core.Download
                 return;
             }
 
-            var downloadItemOutputPath = trackedDownload.DownloadItem.OutputPath;
-
-            if (downloadItemOutputPath.IsEmpty)
+            if (!ValidatePath(trackedDownload))
             {
-                trackedDownload.Warn("Download doesn't contain intermediate path, Skipping.");
-                return;
-            }
-
-            if ((OsInfo.IsWindows && !downloadItemOutputPath.IsWindowsPath) ||
-                (OsInfo.IsNotWindows && !downloadItemOutputPath.IsUnixPath))
-            {
-                trackedDownload.Warn("[{0}] is not a valid local path. You may need a Remote Path Mapping.", downloadItemOutputPath);
                 return;
             }
 
@@ -102,9 +103,16 @@ namespace NzbDrone.Core.Download
 
         public void Import(TrackedDownload trackedDownload)
         {
+            SetImportItem(trackedDownload);
+
+            if (!ValidatePath(trackedDownload))
+            {
+                return;
+            }
+
             trackedDownload.State = TrackedDownloadState.Importing;
 
-            var outputPath = trackedDownload.DownloadItem.OutputPath.FullPath;
+            var outputPath = trackedDownload.ImportItem.OutputPath.FullPath;
             var importResults = _downloadedEpisodesImportService.ProcessPath(outputPath, ImportMode.Auto,
                 trackedDownload.RemoteEpisode.Series, trackedDownload.DownloadItem);
 
@@ -123,7 +131,7 @@ namespace NzbDrone.Core.Download
             if (importResults.Any(c => c.Result != ImportResultType.Imported))
             {
                 var statusMessages = importResults
-                    .Where(v => v.Result != ImportResultType.Imported)
+                    .Where(v => v.Result != ImportResultType.Imported && v.ImportDecision.LocalEpisode != null)
                     .Select(v => new TrackedDownloadStatusMessage(Path.GetFileName(v.ImportDecision.LocalEpisode.Path), v.Errors))
                     .ToArray();
 
@@ -140,8 +148,9 @@ namespace NzbDrone.Core.Download
 
             if (allEpisodesImported)
             {
+                _logger.Debug("All episodes were imported for {0}", trackedDownload.DownloadItem.Title);
                 trackedDownload.State = TrackedDownloadState.Imported;
-                _eventAggregator.PublishEvent(new DownloadCompletedEvent(trackedDownload));
+                _eventAggregator.PublishEvent(new DownloadCompletedEvent(trackedDownload, trackedDownload.RemoteEpisode.Series.Id));
                 return true;
             }
 
@@ -154,23 +163,68 @@ namespace NzbDrone.Core.Download
             // Since imports should be relatively fast and these types of data changes are infrequent this should be quite
             // safe, but commenting for future benefit.
 
-            if (importResults.Any(c => c.Result == ImportResultType.Imported))
+            var atLeastOneEpisodeImported = importResults.Any(c => c.Result == ImportResultType.Imported);
+
+            var historyItems = _historyService.FindByDownloadId(trackedDownload.DownloadItem.DownloadId)
+                                              .OrderByDescending(h => h.Date)
+                                              .ToList();
+
+            var allEpisodesImportedInHistory = _trackedDownloadAlreadyImported.IsImported(trackedDownload, historyItems);
+
+            if (allEpisodesImportedInHistory)
             {
-                var historyItems = _historyService.FindByDownloadId(trackedDownload.DownloadItem.DownloadId)
-                                                  .OrderByDescending(h => h.Date)
-                                                  .ToList();
+                // Log different error messages depending on the circumstances, but treat both as fully imported, because that's the reality.
+                // The second message shouldn't be logged in most cases, but continued reporting would indicate an ongoing issue.
 
-                var allEpisodesImportedInHistory = _trackedDownloadAlreadyImported.IsImported(trackedDownload, historyItems);
-
-                if (allEpisodesImportedInHistory)
+                if (atLeastOneEpisodeImported)
                 {
-                    trackedDownload.State = TrackedDownloadState.Imported;
-                    _eventAggregator.PublishEvent(new DownloadCompletedEvent(trackedDownload));
-                    return true;
+                    _logger.Debug("All episodes were imported in history for {0}", trackedDownload.DownloadItem.Title);
                 }
+                else
+                {
+                    _logger.Debug()
+                           .Message("No Episodes were just imported, but all episodes were previously imported, possible issue with download history.")
+                           .Property("SeriesId", trackedDownload.RemoteEpisode.Series.Id)
+                           .Property("DownloadId", trackedDownload.DownloadItem.DownloadId)
+                           .Property("Title", trackedDownload.DownloadItem.Title)
+                           .Property("Path", trackedDownload.ImportItem.OutputPath.ToString())
+                           .WriteSentryWarn("DownloadHistoryIncomplete")
+                           .Write();
+                }
+
+                trackedDownload.State = TrackedDownloadState.Imported;
+                _eventAggregator.PublishEvent(new DownloadCompletedEvent(trackedDownload, trackedDownload.RemoteEpisode.Series.Id));
+
+                return true;
             }
 
+            _logger.Debug("Not all episodes have been imported for {0}", trackedDownload.DownloadItem.Title);
             return false;
+        }
+
+        private void SetImportItem(TrackedDownload trackedDownload)
+        {
+            trackedDownload.ImportItem = _provideImportItemService.ProvideImportItem(trackedDownload.DownloadItem, trackedDownload.ImportItem);
+        }
+
+        private bool ValidatePath(TrackedDownload trackedDownload)
+        {
+            var downloadItemOutputPath = trackedDownload.ImportItem.OutputPath;
+
+            if (downloadItemOutputPath.IsEmpty)
+            {
+                trackedDownload.Warn("Download doesn't contain intermediate path, Skipping.");
+                return false;
+            }
+
+            if ((OsInfo.IsWindows && !downloadItemOutputPath.IsWindowsPath) ||
+                (OsInfo.IsNotWindows && !downloadItemOutputPath.IsUnixPath))
+            {
+                trackedDownload.Warn("[{0}] is not a valid local path. You may need a Remote Path Mapping.", downloadItemOutputPath);
+                return false;
+            }
+
+            return true;
         }
     }
 }

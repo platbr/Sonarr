@@ -65,8 +65,7 @@ namespace NzbDrone.Core.MediaFiles
         public EpisodeFile MoveEpisodeFile(EpisodeFile episodeFile, Series series)
         {
             var episodes = _episodeService.GetEpisodesByFileId(episodeFile.Id);
-            var newFileName = _buildFileNames.BuildFileName(episodes, series, episodeFile);
-            var filePath = _buildFileNames.BuildFilePath(series, episodes.First().SeasonNumber, newFileName, Path.GetExtension(episodeFile.RelativePath));
+            var filePath = _buildFileNames.BuildFilePath(episodes, series, episodeFile, Path.GetExtension(episodeFile.RelativePath));
 
             EnsureEpisodeFolder(episodeFile, series, episodes.Select(v => v.SeasonNumber).First(), filePath);
 
@@ -77,8 +76,7 @@ namespace NzbDrone.Core.MediaFiles
 
         public EpisodeFile MoveEpisodeFile(EpisodeFile episodeFile, LocalEpisode localEpisode)
         {
-            var newFileName = _buildFileNames.BuildFileName(localEpisode.Episodes, localEpisode.Series, episodeFile);
-            var filePath = _buildFileNames.BuildFilePath(localEpisode.Series, localEpisode.SeasonNumber, newFileName, Path.GetExtension(localEpisode.Path));
+            var filePath = _buildFileNames.BuildFilePath(localEpisode.Episodes, localEpisode.Series, episodeFile, Path.GetExtension(localEpisode.Path));
 
             EnsureEpisodeFolder(episodeFile, localEpisode, filePath);
 
@@ -89,8 +87,7 @@ namespace NzbDrone.Core.MediaFiles
 
         public EpisodeFile CopyEpisodeFile(EpisodeFile episodeFile, LocalEpisode localEpisode)
         {
-            var newFileName = _buildFileNames.BuildFileName(localEpisode.Episodes, localEpisode.Series, episodeFile);
-            var filePath = _buildFileNames.BuildFilePath(localEpisode.Series, localEpisode.SeasonNumber, newFileName, Path.GetExtension(localEpisode.Path));
+            var filePath = _buildFileNames.BuildFilePath(localEpisode.Episodes, localEpisode.Series, episodeFile, Path.GetExtension(localEpisode.Path));
 
             EnsureEpisodeFolder(episodeFile, localEpisode, filePath);
 
