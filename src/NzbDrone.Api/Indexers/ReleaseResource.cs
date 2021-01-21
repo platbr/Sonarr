@@ -54,8 +54,7 @@ namespace NzbDrone.Api.Indexers
         public DownloadProtocol Protocol { get; set; }
 
 
-        // TODO: Remove in v3
-        // Used to support the original Release Push implementation
+        // Used to support the original Release Push implementation, removed in v3
         // JsonIgnore so we don't serialize it, but can still parse it
         [JsonIgnore]
         public DownloadProtocol DownloadProtocol
@@ -92,7 +91,7 @@ namespace NzbDrone.Api.Indexers
             return new ReleaseResource
             {
                 Guid = releaseInfo.Guid,
-                Quality = parsedEpisodeInfo.Quality,
+                Quality = parsedEpisodeInfo?.Quality,
                 //QualityWeight
                 Age = releaseInfo.Age,
                 AgeHours = releaseInfo.AgeHours,
@@ -100,16 +99,16 @@ namespace NzbDrone.Api.Indexers
                 Size = releaseInfo.Size,
                 IndexerId = releaseInfo.IndexerId,
                 Indexer = releaseInfo.Indexer,
-                ReleaseGroup = parsedEpisodeInfo.ReleaseGroup,
-                ReleaseHash = parsedEpisodeInfo.ReleaseHash,
+                ReleaseGroup = parsedEpisodeInfo?.ReleaseGroup,
+                ReleaseHash = parsedEpisodeInfo?.ReleaseHash,
                 Title = releaseInfo.Title,
-                FullSeason = parsedEpisodeInfo.FullSeason,
-                SeasonNumber = parsedEpisodeInfo.SeasonNumber,
-                Language = parsedEpisodeInfo.Language,
-                AirDate = parsedEpisodeInfo.AirDate,
-                SeriesTitle = parsedEpisodeInfo.SeriesTitle,
-                EpisodeNumbers = parsedEpisodeInfo.EpisodeNumbers,
-                AbsoluteEpisodeNumbers = parsedEpisodeInfo.AbsoluteEpisodeNumbers,
+                FullSeason = parsedEpisodeInfo?.FullSeason ?? false,
+                SeasonNumber = parsedEpisodeInfo?.SeasonNumber ?? 0,
+                Language = parsedEpisodeInfo?.Language,
+                AirDate = parsedEpisodeInfo?.AirDate,
+                SeriesTitle = parsedEpisodeInfo?.SeriesTitle,
+                EpisodeNumbers = parsedEpisodeInfo?.EpisodeNumbers,
+                AbsoluteEpisodeNumbers = parsedEpisodeInfo?.AbsoluteEpisodeNumbers,
                 Approved = model.Approved,
                 TemporarilyRejected = model.TemporarilyRejected,
                 Rejected = model.Rejected,
@@ -129,10 +128,10 @@ namespace NzbDrone.Api.Indexers
                 Leechers = (torrentInfo.Peers.HasValue && torrentInfo.Seeders.HasValue) ? (torrentInfo.Peers.Value - torrentInfo.Seeders.Value) : (int?)null,
                 Protocol = releaseInfo.DownloadProtocol,
 
-                IsDaily = parsedEpisodeInfo.IsDaily,
-                IsAbsoluteNumbering = parsedEpisodeInfo.IsAbsoluteNumbering,
-                IsPossibleSpecialEpisode = parsedEpisodeInfo.IsPossibleSpecialEpisode,
-                Special = parsedEpisodeInfo.Special,
+                IsDaily = parsedEpisodeInfo?.IsDaily ?? false,
+                IsAbsoluteNumbering = parsedEpisodeInfo?.IsAbsoluteNumbering ?? false,
+                IsPossibleSpecialEpisode = parsedEpisodeInfo?.IsPossibleSpecialEpisode ?? false,
+                Special = parsedEpisodeInfo?.Special ?? false,
             };
 
         }

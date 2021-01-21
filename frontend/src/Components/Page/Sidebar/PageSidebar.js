@@ -29,7 +29,7 @@ const links = [
         to: '/add/new'
       },
       {
-        title: 'Import',
+        title: 'Library Import',
         to: '/add/import'
       },
       {
@@ -110,6 +110,10 @@ const links = [
       {
         title: 'Download Clients',
         to: '/settings/downloadclients'
+      },
+      {
+        title: 'Import Lists',
+        to: '/settings/importlists'
       },
       {
         title: 'Connect',

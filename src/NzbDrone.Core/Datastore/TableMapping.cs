@@ -39,6 +39,9 @@ using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Languages;
 using NzbDrone.Core.Profiles.Languages;
 using NzbDrone.Core.Profiles.Releases;
+using NzbDrone.Core.Update.History;
+using NzbDrone.Core.ImportLists.Exclusions;
+using NzbDrone.Core.ImportLists;
 
 namespace NzbDrone.Core.Datastore
 {
@@ -79,6 +82,10 @@ namespace NzbDrone.Core.Datastore
             Mapper.Entity<DownloadClientDefinition>().RegisterDefinition("DownloadClients")
                   .Ignore(d => d.Protocol)
                   .Ignore(d => d.Tags);
+
+            Mapper.Entity<ImportListDefinition>().RegisterDefinition("ImportLists")
+                .Ignore(i => i.ListType)
+                .Ignore(i => i.Enable);
 
             Mapper.Entity<SceneMapping>().RegisterModel("SceneMappings");
 
@@ -134,11 +141,15 @@ namespace NzbDrone.Core.Datastore
 
             Mapper.Entity<IndexerStatus>().RegisterModel("IndexerStatus");
             Mapper.Entity<DownloadClientStatus>().RegisterModel("DownloadClientStatus");
+            Mapper.Entity<ImportListStatus>().RegisterModel("ImportListStatus");
 
             Mapper.Entity<CustomFilter>().RegisterModel("CustomFilters");
 
             Mapper.Entity<DownloadHistory>().RegisterModel("DownloadHistory")
                   .AutoMapChildModels();
+
+            Mapper.Entity<UpdateHistory>().RegisterModel("UpdateHistory");
+            Mapper.Entity<ImportListExclusion>().RegisterModel("ImportListExclusions");
         }
 
         private static void RegisterMappers()
@@ -168,6 +179,7 @@ namespace NzbDrone.Core.Datastore
             MapRepository.Instance.RegisterTypeConverter(typeof(Command), new CommandConverter());
             MapRepository.Instance.RegisterTypeConverter(typeof(TimeSpan), new TimeSpanConverter());
             MapRepository.Instance.RegisterTypeConverter(typeof(TimeSpan?), new TimeSpanConverter());
+            MapRepository.Instance.RegisterTypeConverter(typeof(Version), new SystemVersionConverter());
         }
 
         private static void RegisterProviderSettingConverter()

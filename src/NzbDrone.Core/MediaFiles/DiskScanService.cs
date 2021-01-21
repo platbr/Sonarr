@@ -69,29 +69,42 @@ namespace NzbDrone.Core.MediaFiles
         {
             var rootFolder = _rootFolderService.GetBestRootFolderPath(series.Path);
 
-            if (!_diskProvider.FolderExists(rootFolder))
-            {
-                _logger.Warn("Series' root folder ({0}) doesn't exist.", rootFolder);
-                _eventAggregator.PublishEvent(new SeriesScanSkippedEvent(series, SeriesScanSkippedReason.RootFolderDoesNotExist));
-                return;
-            }
+            var seriesFolderExists = _diskProvider.FolderExists(series.Path);
 
-            if (_diskProvider.GetDirectories(rootFolder).Empty())
+            if (!seriesFolderExists)
             {
-                _logger.Warn("Series' root folder ({0}) is empty.", rootFolder);
-                _eventAggregator.PublishEvent(new SeriesScanSkippedEvent(series, SeriesScanSkippedReason.RootFolderIsEmpty));
-                return;
+                if (!_diskProvider.FolderExists(rootFolder))
+                {
+                    _logger.Warn("Series' root folder ({0}) doesn't exist.", rootFolder);
+                    _eventAggregator.PublishEvent(new SeriesScanSkippedEvent(series, SeriesScanSkippedReason.RootFolderDoesNotExist));
+                    return;
+                }
+
+                if (_diskProvider.FolderEmpty(rootFolder))
+                {
+                    _logger.Warn("Series' root folder ({0}) is empty.", rootFolder);
+                    _eventAggregator.PublishEvent(new SeriesScanSkippedEvent(series, SeriesScanSkippedReason.RootFolderIsEmpty));
+                    return;
+                }
             }
 
             _logger.ProgressInfo("Scanning {0}", series.Title);
 
-            if (!_diskProvider.FolderExists(series.Path))
+            if (!seriesFolderExists)
             {
                 if (_configService.CreateEmptySeriesFolders)
                 {
-                    _logger.Debug("Creating missing series folder: {0}", series.Path);
-                    _diskProvider.CreateFolder(series.Path);
-                    SetPermissions(series.Path);
+                    if (_configService.DeleteEmptyFolders)
+                    {
+                        _logger.Debug("Not creating missing series folder: {0} because delete empty series folders is enabled", series.Path);
+                    }
+                    else
+                    {
+                        _logger.Debug("Creating missing series folder: {0}", series.Path);
+                        
+                        _diskProvider.CreateFolder(series.Path);
+                        SetPermissions(series.Path);
+                    }
                 }
                 else
                 {
@@ -181,13 +194,10 @@ namespace NzbDrone.Core.MediaFiles
 
             try
             {
-                var permissions = _configService.FolderChmod;
-                _diskProvider.SetPermissions(path, permissions, _configService.ChownUser, _configService.ChownGroup);
+                _diskProvider.SetPermissions(path, _configService.ChmodFolder, _configService.ChownGroup);
             }
-
             catch (Exception ex)
             {
-
                 _logger.Warn(ex, "Unable to apply permissions to: " + path);
                 _logger.Debug(ex, ex.Message);
             }
@@ -197,13 +207,11 @@ namespace NzbDrone.Core.MediaFiles
         {
             if (_configService.DeleteEmptyFolders)
             {
-                if (_diskProvider.GetFiles(path, SearchOption.AllDirectories).Empty())
+                _diskProvider.RemoveEmptySubfolders(path);
+
+                if (_diskProvider.FolderEmpty(path))
                 {
                     _diskProvider.DeleteFolder(path, true);
-                }
-                else
-                {
-                    _diskProvider.RemoveEmptySubfolders(path);
                 }
             }
         }

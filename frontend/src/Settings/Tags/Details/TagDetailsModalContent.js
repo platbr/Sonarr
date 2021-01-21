@@ -18,6 +18,7 @@ function TagDetailsModalContent(props) {
     isTagUsed,
     series,
     delayProfiles,
+    importLists,
     notifications,
     releaseProfiles,
     onModalClose,
@@ -96,6 +97,21 @@ function TagDetailsModalContent(props) {
         }
 
         {
+          !!importLists.length &&
+            <FieldSet legend="Import Lists">
+              {
+                importLists.map((item) => {
+                  return (
+                    <div key={item.id}>
+                      {item.name}
+                    </div>
+                  );
+                })
+              }
+            </FieldSet>
+        }
+
+        {
           !!releaseProfiles.length &&
             <FieldSet legend="Release Profiles">
               {
@@ -151,7 +167,7 @@ function TagDetailsModalContent(props) {
             isDisabled={isTagUsed}
             onPress={onDeleteTagPress}
           >
-              Delete
+            Delete
           </Button>
         }
 
@@ -170,6 +186,7 @@ TagDetailsModalContent.propTypes = {
   isTagUsed: PropTypes.bool.isRequired,
   series: PropTypes.arrayOf(PropTypes.object).isRequired,
   delayProfiles: PropTypes.arrayOf(PropTypes.object).isRequired,
+  importLists: PropTypes.arrayOf(PropTypes.object).isRequired,
   notifications: PropTypes.arrayOf(PropTypes.object).isRequired,
   releaseProfiles: PropTypes.arrayOf(PropTypes.object).isRequired,
   onModalClose: PropTypes.func.isRequired,

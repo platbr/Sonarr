@@ -16,7 +16,7 @@ namespace NzbDrone.Core.Tv
     public interface IAddSeriesService
     {
         Series AddSeries(Series newSeries);
-        List<Series> AddSeries(List<Series> newSeries);
+        List<Series> AddSeries(List<Series> newSeries, bool ignoreErrors = false);
     }
 
     public class AddSeriesService : IAddSeriesService
@@ -53,18 +53,49 @@ namespace NzbDrone.Core.Tv
             return newSeries;
         }
 
-        public List<Series> AddSeries(List<Series> newSeries)
+        public List<Series> AddSeries(List<Series> newSeries, bool ignoreErrors = false) 
         {
+
             var added = DateTime.UtcNow;
             var seriesToAdd = new List<Series>();
+            var existingSeries = _seriesService.GetAllSeries();
 
             foreach (var s in newSeries)
             {
-                // TODO: Verify if adding skyhook data will be slow
-                var series = AddSkyhookData(s);
-                series = SetPropertiesAndValidate(series);
-                series.Added = added;
-                seriesToAdd.Add(series);
+                _logger.Info("Adding Series {0} Path: [{1}]", s, s.Path);
+
+                try
+                {
+                    var series = AddSkyhookData(s);
+                    series = SetPropertiesAndValidate(series);
+                    series.Added = added;
+                    if (existingSeries.Any(f => f.TvdbId == series.TvdbId))
+                    {
+                        _logger.Debug("TVDB ID {0} was not added due to validation failure: Series already exists in database", s.TvdbId);
+                        continue;
+                    }
+                    if (seriesToAdd.Any(f => f.TvdbId == series.TvdbId))
+                    {
+                        _logger.Debug("TVDB ID {0} was not added due to validation failure: Series already exists on list", s.TvdbId);
+                        continue;
+                    }
+                    var duplicateSlug = seriesToAdd.FirstOrDefault(f => f.TitleSlug == series.TitleSlug);
+                    if (duplicateSlug != null)
+                    {
+                        _logger.Debug("TVDB ID {0} was not added due to validation failure: Duplicate Slug {1} used by series {2}", s.TvdbId, s.TitleSlug, duplicateSlug.TvdbId);
+                        continue;
+                    }
+                    seriesToAdd.Add(series);
+                }
+                catch (ValidationException ex)
+                {
+                    if (!ignoreErrors)
+                    {
+                        throw;
+                    }
+
+                    _logger.Debug("TVDB ID {0} was not added due to validation failures. {1}", s.TvdbId, ex.Message);
+                }
             }
 
             return _seriesService.AddSeries(seriesToAdd);
@@ -80,11 +111,11 @@ namespace NzbDrone.Core.Tv
             }
             catch (SeriesNotFoundException)
             {
-                _logger.Error("tvdbid {1} was not found, it may have been removed from TheTVDB.", newSeries.TvdbId);
+                _logger.Error("TVDB ID {0} was not found, it may have been removed from TheTVDB.  Path: {1}", newSeries.TvdbId, newSeries.Path);
                 
                 throw new ValidationException(new List<ValidationFailure>
                                               {
-                                                  new ValidationFailure("TvdbId", "A series with this ID was not found", newSeries.TvdbId)
+                                                  new ValidationFailure("TvdbId", $"A series with this ID was not found. Path: {newSeries.Path}", newSeries.TvdbId)
                                               });
             }
 

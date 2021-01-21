@@ -149,12 +149,14 @@ export const actionHandlers = handleThunks({
       ...currentIds.map((id) => updateItem({
         section,
         id,
-        isReprocessing: false
+        isReprocessing: false,
+        updateOnly: true
       })),
       ...payload.ids.map((id) => updateItem({
         section,
         id,
-        isReprocessing: true
+        isReprocessing: true,
+        updateOnly: true
       }))
     ]));
 
@@ -166,7 +168,11 @@ export const actionHandlers = handleThunks({
       return {
         id,
         path: item.path,
-        seriesId: item.series.id,
+        seriesId: item.series ? item.series.id : undefined,
+        seasonNumber: item.seasonNumber,
+        episodeIds: (item.episodes || []).map((e) => e.id),
+        quality: item.quality,
+        language: item.language,
         downloadId: item.downloadId
       };
     });
@@ -186,7 +192,8 @@ export const actionHandlers = handleThunks({
         data.map((item) => updateItem({
           section,
           ...item,
-          isReprocessing: false
+          isReprocessing: false,
+          updateOnly: true
         }))
       ));
     });
@@ -200,7 +207,8 @@ export const actionHandlers = handleThunks({
         payload.ids.map((id) => updateItem({
           section,
           id,
-          isReprocessing: false
+          isReprocessing: false,
+          updateOnly: true
         }))
       ));
     });

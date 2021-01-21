@@ -20,7 +20,7 @@ namespace NzbDrone.Core.Download.Clients.Nzbget
     {
         private readonly INzbgetProxy _proxy;
         private readonly string[] _successStatus = { "SUCCESS", "NONE" };
-        private readonly string[] _deleteFailedStatus =  { "HEALTH", "DUPE", "SCAN", "COPY" };
+        private readonly string[] _deleteFailedStatus =  { "HEALTH", "DUPE", "SCAN", "COPY", "BAD" };
 
         public Nzbget(INzbgetProxy proxy,
                       IHttpClient httpClient,
@@ -132,6 +132,13 @@ namespace NzbDrone.Core.Download.Clients.Nzbget
 
                 if (item.DeleteStatus == "MANUAL")
                 {
+                    if (item.MarkStatus == "BAD")
+                    {
+                        historyItem.Status = DownloadItemStatus.Failed;
+
+                        historyItems.Add(historyItem);
+                    }
+
                     continue;
                 }
 

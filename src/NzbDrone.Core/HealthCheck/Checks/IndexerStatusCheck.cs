@@ -24,10 +24,13 @@ namespace NzbDrone.Core.HealthCheck.Checks
         {
             var enabledProviders = _providerFactory.GetAvailableProviders();
             var backOffProviders = enabledProviders.Join(_providerStatusService.GetBlockedProviders(),
-                    i => i.Definition.Id,
-                    s => s.ProviderId,
-                    (i, s) => new { Provider = i, Status = s })
-                .ToList();
+                                                       i => i.Definition.Id,
+                                                       s => s.ProviderId,
+                                                       (i, s) => new {Provider = i, Status = s})
+                                                   .Where(p => p.Status.InitialFailure.HasValue &&
+                                                               p.Status.InitialFailure.Value.After(
+                                                                   DateTime.UtcNow.AddHours(-6)))
+                                                   .ToList();
 
             if (backOffProviders.Empty())
             {
@@ -36,10 +39,10 @@ namespace NzbDrone.Core.HealthCheck.Checks
 
             if (backOffProviders.Count == enabledProviders.Count)
             {
-                return new HealthCheck(GetType(), HealthCheckResult.Error, "All indexers are unavailable due to failures", "#indexers-are-unavailable-due-to-failures");
+                return new HealthCheck(GetType(), HealthCheckResult.Error, "All indexers are unavailable due to failures", "#indexers_are_unavailable_due_to_failures");
             }
 
-            return new HealthCheck(GetType(), HealthCheckResult.Warning, string.Format("Indexers unavailable due to failures: {0}", string.Join(", ", backOffProviders.Select(v => v.Provider.Definition.Name))), "#indexers-are-unavailable-due-to-failures");
+            return new HealthCheck(GetType(), HealthCheckResult.Warning, string.Format("Indexers unavailable due to failures: {0}", string.Join(", ", backOffProviders.Select(v => v.Provider.Definition.Name))), "#indexers_are_unavailable_due_to_failures");
         }
     }
 }
