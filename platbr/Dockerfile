@@ -24,7 +24,7 @@ RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 3FA7E03280
 WORKDIR /build
 
 COPY . /build
-ARG BUILD_NUMBER="3.10.0.001"
+ARG BUILD_NUMBER="3.10.4.001"
 ARG BRANCH="platbr"
 
 RUN msbuild /t:restore src/Sonarr.sln
@@ -32,7 +32,7 @@ RUN ./build.sh
 
 
 FROM lsiobase/mono:LTS
-ARG BUILD_NUMBER="3.10.0.001"
+ARG BUILD_NUMBER="3.10.4.001"
 ARG BRANCH="platbr"
 LABEL maintainer="platbr"
 
